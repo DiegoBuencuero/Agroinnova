@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block plugin_css %}
+<link rel="stylesheet" href="{% static 'vendors/datatables.net-bs4/dataTables.bootstrap4.css' %}">
+<link rel="stylesheet" type="text/css" href="{% static 'js/select.dataTables.min.css' %}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.3.0/ol.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+  .content-wrapper {
+    padding: 0 !important;
+  }
+  .panel-camadas {
+    position: absolute;
+    top: 80px;
+    right: 20px;
+    width: 260px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 16px;
+    z-index: 1500;
+    font-family: 'Segoe UI', sans-serif;
+  }
+  .panel-header {
+    font-size: 16px;
+    color: #4B4B77;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+  }
+  .panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .custom-checkbox {
+    position: relative;
+    padding-left: 30px;
+    cursor: pointer;
+    font-size: 14px;
+    user-select: none;
+    color: #333;
+  }
+  .custom-checkbox input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .custom-checkbox .checkmark {
+    position: absolute;
+    left: 0;
+    top: 2px;
+    height: 18px;
+    width: 18px;
+    background-color: #eee;
+    border-radius: 4px;
+    border: 2px solid #a084ca;
+  }
+  .custom-checkbox input:checked ~ .checkmark {
+    background-color: #a084ca;
+    border-color: #a084ca;
+  }
+  .custom-checkbox .checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+  }
+  .custom-checkbox input:checked ~ .checkmark:after {
+    display: block;
+  }
+  .custom-checkbox .checkmark:after {
+    left: 5px;
+    top: 1px;
+    width: 5px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="toolbar" class="toolbar shadow-sm px-3 py-2 bg-white border-bottom">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-2">
+      <label for="selectorLote" class="mb-0 fw-semibold text-dark">Lote:</label>
+      <select id="selectorLote" class="form-select form-select-sm" style="min-width: 200px;">
+        <option value="">-- Selecionar lote --</option>
+        {% for lote in lotes %}
+          <option value="{{ lote.id }}">{{ lote.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button type="button" id="btnZoom" class="btn btn-outline-secondary btn-sm" title="Zoom ao lote">
+        <i class="fas fa-crosshairs"></i>
+      </button>
+      <button type="button" id="btnRemover" class="btn btn-outline-danger btn-sm" title="Remover camada">
+        <i class="fas fa-trash-alt"></i>
+      </button>
+      <button type="button" id="btnUploadModal" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalUpload">
+        <i class="fas fa-upload me-1"></i> Enviar
+      </button>
+      <div class="dropdown">
+        <button id="btnDropdownCamadas" class="btn btn-secondary btn-sm dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="fa-solid fa-layer-group text-white"></i>
+          <span>Camadas</span>
+        </button>
+        <div class="dropdown-menu p-0 border-0 shadow" id="menuDropdownCamadas" style="min-width: 220px;">
+          <div class="panel-header px-3 pt-2 pb-1 border-bottom text-muted small">
+            <i class="fas fa-layer-group me-2"></i> Tipos disponíveis
+          </div>
+          <div class="panel-body px-2 py-2" id="contenedorCheckboxes"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="map" style="height: 100vh;"></div>
+{% endblock %}
+
+{% block plugin_js %}
+<script src="{% static 'vendors/chart.js/Chart.min.js' %}"></script>
+<script src="https://cdn.jsdelivr.net/npm/ol@v7.3.0/dist/ol.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+{% endblock %}
+{% block custom_js %}
+<script>
+  const map = new ol.Map({
+    target: 'map',
+    layers: [new ol.layer.Tile({ source: new ol.source.OSM() })],
+    view: new ol.View({ center: ol.proj.fromLonLat([-51.185, -27.436]), zoom: 14 })
+  });
+
+  const capasActivas = {};  
+
+  function limpiarMapa() {
+    for (const tipo in capasActivas) {
+      capasActivas[tipo].forEach(capa => map.removeLayer(capa));
+    }
+    Object.keys(capasActivas).forEach(k => delete capasActivas[k]);
+    $('#contenedorCheckboxes').empty();
+  }
+
+  $(document).ready(function () {
+    const $btnCamadas = $('#btnDropdownCamadas');
+    const $menuCamadas = $('#menuDropdownCamadas');
+
+    $btnCamadas.prop('disabled', true);
+
+    $('#selectorLote').on('change', function () {
+      const loteId = $(this).val();
+      console.log('Lote seleccionado:', loteId);
+
+      limpiarMapa();
+
+      if (!loteId) return;
+
+      $.ajax({
+        url: '/get_capas_lote/',
+        type: 'GET',
+        data: { lote_id: loteId },
+        success: function (response) {
+          console.log('Respuesta de /get_capas_lote:', response);
+          construirPanelTipos(response.capas, loteId);
+
+          $btnCamadas.prop('disabled', false);
+
+          const dropdown = bootstrap.Dropdown.getOrCreateInstance($btnCamadas[0]);
+          dropdown.show();
+        },
+        error: function (xhr, status, error) {
+          console.error('Error al obtener capas:', status, error);
+        }
+      });
+    });
+  });
+
+  function construirPanelTipos(capas, loteId) {
+    const agrupadas = {};
+    capas.forEach(capa => {
+      if (capa.extension !== 'geojson') return;
+      if (!agrupadas[capa.tipo]) agrupadas[capa.tipo] = [];
+      agrupadas[capa.tipo].push(capa);
+    });
+
+    const contenedor = $('#contenedorCheckboxes');
+    contenedor.empty();
+
+    for (const tipo in agrupadas) {
+      const id = `chk-${tipo}`;
+      contenedor.append(`
+        <label class="custom-checkbox">
+          <input type="checkbox" id="${id}" data-tipo="${tipo}" data-lote="${loteId}">
+          <span class="checkmark"></span>
+          ${tipo.charAt(0).toUpperCase() + tipo.slice(1)} (${agrupadas[tipo].length})
+        </label>
+      `);
+    }
+
+    $('input[type="checkbox"]').off('change').on('change', function () {
+      const tipo = $(this).data('tipo');
+      const lote = $(this).data('lote');
+      const activo = $(this).is(':checked');
+
+      console.log(`☑️ Checkbox cambiado: tipo=${tipo}, lote=${lote}, activo=${activo}`);
+
+      if (activo) {
+        $.ajax({
+          url: '/get_capa_tipo/',
+          type: 'GET',
+          data: { lote_id: lote, tipo: tipo },
+          success: function (res) {
+            console.log(`Respuesta de /get_capa_tipo/ para tipo ${tipo}:`, res);
+            capasActivas[tipo] = [];
+
+            res.capas.forEach((capa, idx) => {
+              fetch(capa.url).then(r => r.json()).then(geojson => {
+                const layer = new ol.layer.Vector({
+                  source: new ol.source.Vector({
+                    features: new ol.format.GeoJSON().readFeatures(geojson, {
+                      featureProjection: 'EPSG:3857'
+                    })
+                  }),
+                  style: feature => new ol.style.Style({
+                    fill: new ol.style.Fill({ color: feature.get('color') || 'rgba(0,0,0,0.3)' }),
+                    stroke: new ol.style.Stroke({ color: '#007bff', width: 0.3 })
+                  })
+                });
+                map.addLayer(layer);
+                capasActivas[tipo].push(layer);
+              });
+            });
+          }
+        });
+      } else {
+        if (capasActivas[tipo]) {
+          capasActivas[tipo].forEach(c => map.removeLayer(c));
+          delete capasActivas[tipo];
+        }
+      }
+    });
+  }
+</script>
+{% endblock %}
+{% block nav %}
+{% include 'nav_home.html' %}
+{% endblock %}

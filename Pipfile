@@ -1,0 +1,23 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+django = "*"
+pandas = "*"
+folium = "*"
+matplotlib = "==3.7.3"
+numpy = "*"
+scipy = "*"
+scikit-learn = "*"
+pyproj = "*"
+pykrige = "*"
+shapely = "*"
+geopandas = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
+python_full_version = "3.10.15"

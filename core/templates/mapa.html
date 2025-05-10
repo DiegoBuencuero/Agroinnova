@@ -1,0 +1,333 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block plugin_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.4.0/ol.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm px-3" style="z-index: 1050;">
+  <div class="container-fluid">
+    <span class="navbar-brand">🗺️ Camadas ativas</span>
+    <div class="collapse navbar-collapse">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item"><label class="nav-link"><input type="checkbox" id="rinde" checked> Rendimento</label></li>
+        <li class="nav-item"><label class="nav-link"><input type="checkbox" id="fosforo"> Fósforo</label></li>
+        <li class="nav-item"><label class="nav-link"><input type="checkbox" id="potasio"> Potássio</label></li>
+        <li class="nav-item"><label class="nav-link"><input type="checkbox" id="nitrogeno"> Nitrogênio</label></li>
+        <li class="nav-item"><label class="nav-link"><input type="checkbox" id="azufre"> Enxofre</label></li>
+        <li class="nav-item"><label class="nav-link"><input type="checkbox" id="ph"> pH</label></li>
+        <li class="nav-item"><label class="nav-link"><input type="checkbox" id="compactacion"> Compactação</label></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div id="map" style="height: calc(100vh - 56px); width: 100vw;"></div>
+
+<div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content border-0 rounded-4 shadow">
+      <div class="modal-header bg-dark text-white rounded-top-4">
+        <h5 class="modal-title" id="infoModalLabel">📊 Análise do Ponto Selecionado</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="container-fluid">
+          <div class="row g-3">
+            <div class="col-12">
+              <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                  <h6 class="fw-bold mb-3">🌾 Dados de Plantio</h6>
+                  <div class="row">
+                    <div class="col-md-3"><strong>Variedade:</strong> VY7789</div>
+                    <div class="col-md-3"><strong>Densidade:</strong> 73000</div>
+                    <div class="col-md-3"><strong>Profundidade:</strong> 4.5 cm</div>
+                    <div class="col-md-3"><strong>Data de Plantio:</strong> 10/10/2024</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card shadow-sm h-100">
+                <div class="card-body">
+                  <h6 class="fw-bold">📍 Localização</h6>
+                  <p class="mb-1"><strong>Coordenadas:</strong> <span id="coord"></span></p>
+                  <p class="mb-1"><strong>Rendimento no Ponto:</strong> <span id="rindeValor"></span> kg/ha</p>
+                  <p class="mb-1"><strong>Rendimento Máximo:</strong> 4520 kg/ha</p>
+                  <p class="mb-1"><strong>Rendimento Médio:</strong> 3660 kg/ha</p>
+                  <p class="mb-1"><strong>Rendimento Mínimo:</strong> 2100 kg/ha</p>
+                  <hr>
+                  <h6 class="fw-bold">🌱 Compactação</h6>
+                  <div class="progress">
+                    <div id="compactBar" class="progress-bar bg-success" role="progressbar" style="width: 0%">0%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-8">
+              <div class="card shadow-sm h-100">
+                <div class="card-body">
+                  <h6 class="fw-bold">🔬 Análise de Nutrientes</h6>
+                  <table class="table table-sm table-bordered text-center mt-3">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Variável</th>
+                        <th>Valor do Ponto</th>
+                        <th>Valor Máximo</th>
+                        <th>Diferença</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tablaVariables">
+                      <tr data-var="n"><td>N</td><td id="nVal"></td><td id="nMax"></td><td id="nDiff"></td></tr>
+                      <tr data-var="p"><td>P</td><td id="pVal"></td><td id="pMax"></td><td id="pDiff"></td></tr>
+                      <tr data-var="k"><td>K</td><td id="kVal"></td><td id="kMax"></td><td id="kDiff"></td></tr>
+                      <tr data-var="s"><td>S</td><td id="sVal"></td><td id="sMax"></td><td id="sDiff"></td></tr>
+                      <tr data-var="ph"><td>pH</td><td id="phVal"></td><td id="phMax"></td><td id="phDiff"></td></tr>
+                      <tr data-var="comp"><td>Compactação</td><td id="compVal"></td><td id="compMax"></td><td id="compDiff"></td></tr>
+                    </tbody>
+                  </table>
+                  <canvas id="barChartComparativo" class="mt-4" height="120"></canvas>
+                </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="card shadow-sm">
+                <div class="card-body">
+                  <h6 class="fw-bold">🌧️ Chuvas Acumuladas Mensais (mm)</h6>
+                  <canvas id="lluviaChart" height="100"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer bg-white border-top-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block plugin_js %}
+<script src="https://cdn.jsdelivr.net/npm/ol@v7.4.0/dist/ol.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+const capas = {
+  rinde: crearCapa('/datos-mapa/', 'rinde'),
+  fosforo: crearCapa('/capa-fosforo/', 'valor'),
+  potasio: crearCapa('/capa-potasio/', 'valor'),
+  nitrogeno: crearCapa('/capa-nitrogeno/', 'valor'),
+  azufre: crearCapa('/capa-azufre/', 'valor'),
+  ph: crearCapa('/capa-ph/', 'valor'),
+  compactacion: crearCapa('/capa-compactacion/', 'valor')
+};
+
+const map = new ol.Map({
+  target: 'map',
+  layers: [
+    new ol.layer.Tile({ source: new ol.source.OSM() }),
+    ...Object.values(capas)
+  ],
+  view: new ol.View({
+    center: ol.proj.fromLonLat([-51.19, -27.42]),
+    zoom: 16
+  })
+});
+
+Object.keys(capas).forEach(id => {
+  document.getElementById(id).addEventListener('change', e => {
+    capas[id].setVisible(e.target.checked);
+  });
+});
+
+function crearCapa(url, atributo) {
+  return new ol.layer.Vector({
+    source: new ol.source.Vector({
+      url: url,
+      format: new ol.format.GeoJSON()
+    }),
+    visible: atributo === 'rinde',
+    style: feature => {
+      const color = feature.get('color');
+      return new ol.style.Style({
+        fill: new ol.style.Fill({
+          color: color ? color + '99' : '#88888888'  // ⚠️ OJO: asegurate que sea un string hexadecimal válido
+        }),
+        stroke: new ol.style.Stroke({
+          color: 'transparent', // O '#222' si querés borde
+          width: 0
+        })
+      });
+    }
+  });
+}
+
+map.on("click", function (event) {
+  const clickedCoord = event.coordinate;
+  const [lon, lat] = ol.proj.toLonLat(clickedCoord);
+  document.getElementById("coord").textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+
+  let featureRinde = null;
+  capas.rinde.getSource().forEachFeature(f => {
+    if (f.getGeometry().intersectsCoordinate(clickedCoord)) featureRinde = f;
+  });
+  const rinde = featureRinde?.get("rinde") ?? "—";
+  document.getElementById("rindeValor").textContent = rinde;
+
+  const buscarValorEnCapa = (capa) => {
+    let valor = "—";
+    capa.getSource().forEachFeature(f => {
+      if (f.getGeometry().intersectsCoordinate(clickedCoord)) {
+        valor = f.get("valor");
+      }
+    });
+    return valor;
+  };
+
+  const buscarMaxEnCapa = (capa) => {
+    let max = -Infinity;
+    capa.getSource().forEachFeature(f => {
+      const v = f.get("valor");
+      if (!isNaN(v)) max = Math.max(max, v);
+    });
+    return isFinite(max) ? max : "—";
+  };
+
+  const cargarFila = (id, label) => {
+    const capa = capas[id];
+    const fila = document.querySelector(`tr[data-var='${label}']`);
+    const checkbox = document.querySelector(`input[type='checkbox'][id='${id}']`);
+    fila.style.display = (checkbox?.checked && capa.getVisible()) ? '' : 'none';
+  
+    if (!checkbox?.checked || !capa.getVisible()) {
+      document.getElementById(label + "Val").textContent = "—";
+      document.getElementById(label + "Max").textContent = "—";
+      document.getElementById(label + "Diff").textContent = "—";
+      return;
+    }
+  
+    // Buscar feature en esa capa
+    let featureMatch = null;
+    capa.getSource().forEachFeature(f => {
+      if (f.getGeometry().intersectsCoordinate(clickedCoord)) {
+        featureMatch = f;
+      }
+    });
+  
+    if (!featureMatch) {
+      document.getElementById(label + "Val").textContent = "—";
+      document.getElementById(label + "Max").textContent = "—";
+      document.getElementById(label + "Diff").textContent = "—";
+      return;
+    }
+  
+    const val = featureMatch.get("valor");
+    const max = buscarMaxEnCapa(capa);
+    const diff = (val !== undefined && max !== "—") ? (max - val).toFixed(1) : "—";
+  
+    document.getElementById(label + "Val").textContent = val !== undefined ? parseFloat(val).toFixed(1) : "—";
+    document.getElementById(label + "Max").textContent = max !== "—" ? parseFloat(max).toFixed(1) : "—";
+    document.getElementById(label + "Diff").textContent = diff;
+  };
+  
+
+  cargarFila("nitrogeno", "n");
+  cargarFila("fosforo", "p");
+  cargarFila("potasio", "k");
+  cargarFila("azufre", "s");
+  cargarFila("ph", "ph");
+  cargarFila("compactacion", "comp");
+
+  const modal = new bootstrap.Modal(document.getElementById('infoModal'));
+  modal.show();
+
+  let chart;
+function actualizarGrafico(vars) {
+  const labels = Object.keys(vars);
+  const valPunto = labels.map(k => vars[k].punto);
+  const valMax = labels.map(k => vars[k].maximo);
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('barChartComparativo'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Máximo del Campo',
+          data: valMax,
+          backgroundColor: 'rgba(54, 162, 235, 0.5)',
+          borderColor: 'rgba(54, 162, 235, 1)',
+          borderWidth: 1
+        },
+        {
+          label: 'Punto Seleccionado',
+          data: valPunto,
+          backgroundColor: 'rgba(255, 99, 132, 0.5)',
+          borderColor: 'rgba(255, 99, 132, 1)',
+          borderWidth: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+ 
+
+    const lluviaChart = new Chart(document.getElementById('lluviaChart'), {
+      type: 'line',
+      data: {
+        labels: ['Oct', 'Nov', 'Dic', 'Ene', 'Feb', 'Mar'],
+        datasets: [
+          {
+            label: 'Este Año',
+            data: [45, 78, 62, 83, 55, 90],
+            fill: true,
+            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            tension: 0.3
+          },
+          {
+            label: 'Histórico',
+            data: [65, 70, 75, 80, 60, 95],
+            fill: true,
+            borderColor: 'rgba(201, 203, 207, 1)',
+            backgroundColor: 'rgba(201, 203, 207, 0.2)',
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top' }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'mm' }
+          }
+        }
+      }
+    });
+    </script>
+{% endblock %}

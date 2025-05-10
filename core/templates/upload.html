@@ -1,0 +1,340 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block plugin_css %}
+<link rel="stylesheet" href="{% static 'vendors/datatables.net-bs4/dataTables.bootstrap4.css' %}">
+<link rel="stylesheet" type="text/css" href="{% static 'js/select.dataTables.min.css' %}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.3.0/ol.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+    div.zona-arrastre {
+        border: 2px dashed #4B49AC  !important;
+        border-radius: 10px !important;
+        padding: 40px !important;
+        text-align: center !important;
+        cursor: pointer !important;
+        background: #f9f9f9 !important;
+    }
+  
+    div.zona-arrastre.drag-over {
+        background-color: #e6e6fa !important; /* violeta muy suave */
+        border-color: #6a5acd !important;     /* violeta intermedio */
+      }
+  
+    .zona-activa {
+        background-color: #e8f0ff !important;
+        border-color: #2c6ef2 !important;
+      }
+    .zona-arrastre img {
+      width: 100px;
+      opacity: 0.6;
+    }
+  
+    .tarjeta-hover:hover {
+      background-color: #f8f9fa !important;
+      border: 1px solid  #4B49AC !important;
+      transition: all 0.2s ease-in-out !important;
+    }
+    .card-body .etiqueta-extension {
+      display: inline-block !important;
+      background-color: #f1f1f1 !important;
+      color: #333 !important;
+      font-size: 0.75rem !important;
+      padding: 0.45rem 0.9rem !important;
+      margin: 0.15rem !important;
+      border-radius: 15px !important;
+      font-weight: 600 !important;
+      text-transform: uppercase !important;
+      border: 1px solid #dee2e6 !important;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1) !important;
+      text-align: center !important;
+      white-space: nowrap !important;
+    }
+    .btn i{
+        font-size: 2.5rem !important;
+    }
+    .etiqueta-extension:hover {
+      background-color:  #4B49AC!important;
+      color: #fff !important;
+    }
+  
+    .icono-hover i {
+      transition: transform 0.2s ease;
+    }
+  
+    .icono-hover:hover i {
+      transform: scale(1.2);
+    }
+    .modal-mitad {
+        max-width: 50vw !important;
+    }
+    .fila-archivo {
+        padding: 4px 8px;
+        font-size: 0.85rem;
+        border-radius: 4px;
+      }
+      
+      .badge-tipo {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        border-radius: 3px;
+      }
+      
+      .btn-remover-icon {
+        background: none;
+        border: none;
+        padding: 0;
+        margin-left: 4px;
+        color: #dc3545;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.2s;
+      }
+      
+      .btn-remover-icon:hover {
+        color: #a71d2a;
+      }
+      
+      .btn-remover-icon svg {
+        width: 14px;
+        height: 14px;
+      }
+      
+      /* 🔹 Encabezado más sutil */
+      #encabezadoTabla {
+        font-size: 0.8rem;
+        color: #555;
+        padding: 2px 8px;
+      }
+  </style>
+{% endblock %}
+
+
+
+{% block content %}
+{% if messages %}
+<div id="contenedor-mensajes" class="alert-messages">
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+    {% endfor %}
+</div>
+{% endif %}
+<div class="container mt-5">
+  <h2 class="mb-4 text-center">Adicionar talhões</h2>
+  <div class="row justify-content-center">
+
+    <div class="col-md-4 mb-4 mt-5">
+      <div class="card text-center p-4 shadow tarjeta-hover">
+        <div class="card-body">
+          <button type="button" class="btn p-0 border-0 bg-transparent icono-hover" data-bs-toggle="modal" data-bs-target="#modalUpload">
+            <i class="fas fa-arrow-circle-up fa-4x text-primary mb-4"></i>
+          </button>
+          <h5 class="mb-3">Enviar arquivos</h5>
+          <div class="d-flex flex-wrap justify-content-center gap-1 mb-3">
+            <span class="etiqueta-extension">SHP</span>
+            <span class="etiqueta-extension">KMZ</span>
+            <span class="etiqueta-extension">KML</span>
+            <span class="etiqueta-extension">XML</span>
+            <span class="etiqueta-extension">GML</span>
+            <span class="etiqueta-extension">ZIP</span>
+            <span class="etiqueta-extension">JSON</span>
+            <span class="etiqueta-extension">GEOJSON</span>
+          </div>
+          <p class="text-muted">Adicione vários talhões ao mesmo tempo carregando arquivos KMZ ou SHP</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4 mb-4 mt-5">
+      <div class="card text-center p-4 shadow tarjeta-hover">
+        <div class="card-body">
+          <i class="fas fa-file-import fa-3x text-primary mb-3"></i>
+          <h5 class="mt-3">Importar talhões</h5>
+          <p class="text-muted">Importe talhões de outros sistemas diretamente</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal fade" id="modalUpload" tabindex="-1" aria-labelledby="modalUploadLabel" aria-hidden="true">
+    <div class="modal-dialog modal-mitad modal-dialog-centered">
+    <div class="modal-content">
+        <form method="POST" action="{% url 'cargar_archivos' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="modal-header">
+            <h5 class="modal-title" id="modalUploadLabel">Subir arquivos de talhões</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label for="selectorLote" class="mb-0 fw-semibold text-dark">Lote:</label>
+                <select name="lote" class="form-select" required>
+                  <option value="">-- Selecionar lote --</option>
+                  {% for lote in lotes %}
+                    <option value="{{ lote.nombre }}">{{ lote.nombre }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+ 
+                <div class="zona-arrastre text-center p-4 border rounded" id="zonaArrastre">
+                    <p class="mt-3">Arraste os arquivos aqui ou clique para selecionar</p>
+                    <p class="text-muted">Formatos aceitos: .SHP, .KMZ, .KML, .XML, .GML, .ZIP, .JSON, .GEOJSON</p>
+                    <input type="file" name="archivos" id="inputArquivo" class="form-control mt-3" multiple accept=".shp,.kmz,.kml,.xml,.gml,.zip,.json,.geojson" hidden >
+                    <div class="mt-4 mx-auto" style="max-width: 480px;">
+                    <div class="d-flex justify-content-between" id="encabezadoTabla" style="display: none;">
+                    <span>None do arquivo</span>
+                    <span>Tipo</span>
+                    </div>
+                    <div id="tablaArchivos" class="mt-2 d-flex flex-column gap-2"></div>
+                </div>
+                <div id="listaArchivosCargados" class="mt-3 d-flex flex-wrap gap-2"></div> 
+            </div>
+            <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Enviar</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            </div>
+        </form>
+        </div>
+   </div>
+</div>
+{% endblock %}
+
+{% block plugin_js %}
+<script src="{% static 'vendors/chart.js/Chart.min.js' %}"></script>
+<script src="{% static 'vendors/datatables.net/jquery.dataTables.js' %}"></script>
+<script src="{% static 'vendors/datatables.net-bs4/dataTables.bootstrap4.js' %}"></script>
+<script src="{% static 'js/dataTables.select.min.js' %}"></script>
+<script src="https://cdn.jsdelivr.net/npm/ol@v7.3.0/dist/ol.js"></script>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+    let archivosAcumulados = new DataTransfer();
+  
+    document.getElementById("zonaArrastre").addEventListener('dragover', function(e) {
+      e.preventDefault();
+    });
+  
+    document.getElementById("zonaArrastre").addEventListener('drop', manejarDrop);
+  
+    function manejarDrop(evento) {
+        evento.preventDefault();
+      
+        const nuevosArchivos = evento.dataTransfer.files;
+      
+        for (let i = 0; i < nuevosArchivos.length; i++) {
+          const nuevo = nuevosArchivos[i];
+          let yaExiste = false;
+      
+          for (let j = 0; j < archivosAcumulados.files.length; j++) {
+            if (archivosAcumulados.files[j].name === nuevo.name) {
+              yaExiste = true;
+              break;
+            }
+          }
+      
+          if (!yaExiste) {
+            archivosAcumulados.items.add(nuevo);
+          }
+        }
+      
+        document.getElementById("inputArquivo").files = archivosAcumulados.files;
+        renderizarTablaArchivos();
+      }
+      
+  
+    function renderizarTablaArchivos() {
+      const contenedor = document.getElementById("tablaArchivos");
+      const encabezado = document.getElementById("encabezadoTabla");
+      contenedor.innerHTML = "";
+  
+      if (archivosAcumulados.files.length === 0) {
+        encabezado.style.display = "none";
+        return;
+      } else {
+        encabezado.style.display = "flex";
+      }
+  
+      for (let i = 0; i < archivosAcumulados.files.length; i++) {
+        const archivo = archivosAcumulados.files[i];
+        const nombreCompleto = archivo.name;
+        const nombreSinExtension = nombreCompleto.substring(0, nombreCompleto.lastIndexOf('.')) || nombreCompleto;
+        const extension = nombreCompleto.split('.').pop().toUpperCase();
+  
+        const fila = document.createElement("div");
+        fila.className = "d-flex justify-content-between align-items-center bg-light fila-archivo";
+  
+        const nombreEl = document.createElement("span");
+        nombreEl.textContent = nombreSinExtension;
+        nombreEl.className = "fw-bold";
+  
+        const tipoEl = document.createElement("span");
+        tipoEl.textContent = `.${extension}`;
+        tipoEl.className = "badge bg-dark text-white badge-tipo";
+  
+        const boton = document.createElement("button");
+        boton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M9 3v1H4v2h16V4h-5V3H9zm-3 6v12c0 1.104.896 2 2 2h8c1.104 0 2-.896 2-2V9H6zm2 2h2v8H8v-8zm4 0h2v8h-2v-8z"/>
+        </svg>`;
+        boton.className = "btn-remover-icon";
+        boton.onclick = function () {
+          eliminarArchivo(i);
+        };
+  
+        const ladoDerecho = document.createElement("div");
+        ladoDerecho.className = "d-flex align-items-center gap-2";
+        ladoDerecho.appendChild(tipoEl);
+        ladoDerecho.appendChild(boton);
+  
+        fila.appendChild(nombreEl);
+        fila.appendChild(ladoDerecho);
+        contenedor.appendChild(fila);
+      }
+    }
+  
+    function eliminarArchivo(indice) {
+      const nuevosArchivos = new DataTransfer();
+  
+      for (let i = 0; i < archivosAcumulados.files.length; i++) {
+        if (i !== indice) {
+          nuevosArchivos.items.add(archivosAcumulados.files[i]);
+        }
+      }
+  
+      archivosAcumulados = nuevosArchivos;
+      document.getElementById("inputArquivo").files = archivosAcumulados.files;
+      renderizarTablaArchivos();
+    }
+    const zonaArrastre = document.getElementById("zonaArrastre");
+
+zonaArrastre.addEventListener('dragenter', function (e) {
+  e.preventDefault();
+  zonaArrastre.classList.add('drag-over');
+});
+
+zonaArrastre.addEventListener('dragleave', function (e) {
+  e.preventDefault();
+  zonaArrastre.classList.remove('drag-over');
+});
+
+zonaArrastre.addEventListener('drop', function (e) {
+  e.preventDefault();
+  zonaArrastre.classList.remove('drag-over');
+  manejarDrop(e);
+});
+
+zonaArrastre.addEventListener('dragover', function (e) {
+  e.preventDefault();
+});
+  </script>  
+{% endblock %}
+
+{% block nav %}
+{% include 'nav_home.html' %}
+{% endblock %}
